@@ -121,11 +121,12 @@ if st.button("🔍 Calcular", type="primary", use_container_width=True):
         
         # Peso com vento
         if considerar_vento == "Sim" and p2 > 0:
-            P2 = np.sqrt(P1**2 + (D * p2)**2)
+            fv = D * p2
+            P2 = np.sqrt(P1**2 + fv**2)
         else:
             P2 = P1
         
-        # Temperatura corrigida para cálculo (invisível para o usuário)
+        # Temperatura corrigida para cálculo da condição final
         if cond == "Inicial → Final (com creep)":
             t2_calc = t2 + dt_creep
             t1_calc = t1
@@ -136,7 +137,7 @@ if st.button("🔍 Calcular", type="primary", use_container_width=True):
             t1_calc = t1
             t2_calc = t2
         
-        # Cálculo da mudança de estado (usa temperatura corrigida)
+        # Cálculo da mudança de estado para condição final
         B = (E * area * P1**2 * A**2) / (24 * T01**2) + E * area * alpha * (t2_calc - t1_calc) - T01
         C = (E * area * P2**2 * A**2) / 24
         
@@ -190,7 +191,7 @@ if st.button("🔍 Calcular", type="primary", use_container_width=True):
             df = pd.DataFrame(dados_tabela)
             st.dataframe(df, use_container_width=True, hide_index=True)
             
-            # Detalhes adicionais (mostra temperatura ORIGINAL)
+            # Detalhes adicionais
             st.markdown("---")
             st.subheader("📋 DETALHES")
             
@@ -200,42 +201,49 @@ if st.button("🔍 Calcular", type="primary", use_container_width=True):
                 st.metric("CR", f"{cr:.1f} kgf")
             with col_det2:
                 st.metric("Vão", f"{A} m")
-                st.metric("Peso próprio", f"{P1:.4f} kgf/m")
+                st.metric("Peso próprio (P1)", f"{P1:.4f} kgf/m")
+                if considerar_vento == "Sim" and p2 > 0:
+                    st.metric("Peso composto (P2)", f"{P2:.4f} kgf/m")
             with col_det3:
                 st.metric("Temperatura 1", f"{t1:.1f} °C")
-                st.metric("Temperatura 2", f"{t2:.1f} °C")  # ORIGINAL!
+                st.metric("Temperatura 2", f"{t2:.1f} °C")
                 if dt_creep != 0:
                     st.metric("Creep aplicado", f"{dt_creep:.1f} °C")
             
             # ===================================================
-            # GRÁFICOS MODERNOS (com temperatura ORIGINAL no eixo X)
+            # GRÁFICOS - EVOLUÇÃO COM A TEMPERATURA
             # ===================================================
             st.markdown("---")
             st.subheader("📈 EVOLUÇÃO COM A TEMPERATURA")
             
-            # Gerar pontos de t1 até t2 (temperatura ORIGINAL, passo 1°C)
-            temperaturas_orig = np.arange(t1, t2 + 1, 1)
+            # Gerar pontos de t1 até 90°C (temperatura ORIGINAL, passo 1°C)
+            temp_max = 90
+            temperaturas_orig = np.arange(t1, temp_max + 1, 1)
             
             flechas_evol = []
             tracoes_evol = []
             
             for temp_orig in temperaturas_orig:
-                # Para cada temperatura original, calcular a temperatura corrigida (se houver creep)
-                if cond == "Inicial → Final (com creep)":
-                    temp_calc = temp_orig + dt_creep
-                elif cond == "Final → Inicial (com creep)":
-                    temp_calc = temp_orig - dt_creep
-                else:
-                    temp_calc = temp_orig
-                
-                # Para o ponto inicial (t1), usar P1 (peso próprio)
-                # Para os demais, usar P2 (peso com vento, se houver)
+                # Determinar temperatura corrigida para cálculo (se houver creep)
+                # Regra: só aplica creep para temperaturas > t1
                 if temp_orig == t1:
+                    # Para o ponto inicial, NÃO aplica creep (usa temperatura original)
+                    temp_calc = temp_orig
                     peso_curva = P1
                 else:
+                    # Para os demais pontos, aplica creep se houver
+                    if cond == "Inicial → Final (com creep)":
+                        temp_calc = temp_orig + dt_creep
+                    elif cond == "Final → Inicial (com creep)":
+                        temp_calc = temp_orig - dt_creep
+                    else:
+                        temp_calc = temp_orig
+                    
+                    # Para os demais pontos, usa P2 (peso com vento)
                     peso_curva = P2
                 
-                B_temp = (E * area * P1**2 * A**2) / (24 * T01**2) + E * area * alpha * (temp_calc - t1_calc) - T01
+                # Cálculo da mudança de estado para este ponto
+                B_temp = (E * area * P1**2 * A**2) / (24 * T01**2) + E * area * alpha * (temp_calc - t1) - T01
                 C_temp = (E * area * peso_curva**2 * A**2) / 24
                 
                 roots_temp = np.roots([1, B_temp, 0, -C_temp])
@@ -254,55 +262,53 @@ if st.button("🔍 Calcular", type="primary", use_container_width=True):
                 horizontal_spacing=0.15
             )
             
-            # Gráfico da Flecha (eixo X = temperatura ORIGINAL)
+            # Gráfico da Flecha
             fig.add_trace(
                 go.Scatter(
                     x=temperaturas_orig,
                     y=flechas_evol,
-                    mode='lines+markers',
-                    name='Flecha',
+                    mode='lines',
+                    name='Evolução',
                     line=dict(color='#1f77b4', width=2),
-                    marker=dict(size=4, color='#1f77b4'),
                     hovertemplate='<b>Temperatura: %{x:.0f}°C</b><br>Flecha: %{y:.3f} m<extra></extra>'
                 ),
                 row=1, col=1
             )
             
-            # Ponto da condição inicial (t1)
+            # Ponto da condição inicial (t1) - sempre em cima da curva se não houver correções
             fig.add_trace(
                 go.Scatter(
                     x=[t1],
                     y=[f1],
                     mode='markers',
-                    name=f'Inicial ({t1:.0f}°C)',
-                    marker=dict(size=12, color='red', symbol='circle'),
+                    name=f'Condição Inicial ({t1:.0f}°C)',
+                    marker=dict(size=14, color='red', symbol='circle'),
                     hovertemplate=f'<b>Condição Inicial</b><br>Temperatura: {t1:.0f}°C<br>Flecha: {f1:.3f} m<extra></extra>'
                 ),
                 row=1, col=1
             )
             
-            # Ponto da condição final (t2 ORIGINAL)
+            # Ponto da condição final (t2)
             fig.add_trace(
                 go.Scatter(
                     x=[t2],
                     y=[f2],
                     mode='markers',
-                    name=f'Final ({t2:.0f}°C)',
-                    marker=dict(size=12, color='green', symbol='circle'),
+                    name=f'Condição Final ({t2:.0f}°C)',
+                    marker=dict(size=14, color='green', symbol='circle'),
                     hovertemplate=f'<b>Condição Final</b><br>Temperatura: {t2:.0f}°C<br>Flecha: {f2:.3f} m<extra></extra>'
                 ),
                 row=1, col=1
             )
             
-            # Gráfico da Tração (eixo X = temperatura ORIGINAL)
+            # Gráfico da Tração
             fig.add_trace(
                 go.Scatter(
                     x=temperaturas_orig,
                     y=tracoes_evol,
-                    mode='lines+markers',
-                    name='Tração',
+                    mode='lines',
+                    name='Evolução',
                     line=dict(color='#ff7f0e', width=2),
-                    marker=dict(size=4, color='#ff7f0e'),
                     hovertemplate='<b>Temperatura: %{x:.0f}°C</b><br>Tração: %{y:.0f} kgf<extra></extra>'
                 ),
                 row=1, col=2
@@ -314,20 +320,22 @@ if st.button("🔍 Calcular", type="primary", use_container_width=True):
                     x=[t1],
                     y=[T01],
                     mode='markers',
-                    marker=dict(size=12, color='red', symbol='circle'),
+                    name=f'Condição Inicial ({t1:.0f}°C)',
+                    marker=dict(size=14, color='red', symbol='circle'),
                     hovertemplate=f'<b>Condição Inicial</b><br>Temperatura: {t1:.0f}°C<br>Tração: {T01:.0f} kgf<extra></extra>',
                     showlegend=False
                 ),
                 row=1, col=2
             )
             
-            # Ponto da condição final (t2 ORIGINAL)
+            # Ponto da condição final (t2)
             fig.add_trace(
                 go.Scatter(
                     x=[t2],
                     y=[T02],
                     mode='markers',
-                    marker=dict(size=12, color='green', symbol='circle'),
+                    name=f'Condição Final ({t2:.0f}°C)',
+                    marker=dict(size=14, color='green', symbol='circle'),
                     hovertemplate=f'<b>Condição Final</b><br>Temperatura: {t2:.0f}°C<br>Tração: {T02:.0f} kgf<extra></extra>',
                     showlegend=False
                 ),
