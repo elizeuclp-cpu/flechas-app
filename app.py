@@ -309,9 +309,9 @@ if st.button("🔍 Calcular", type="primary", use_container_width=True):
                     x=[t1],
                     y=[T01],
                     mode='markers',
-                    name=f'Condição Inicial ({t1:.0f}°C)',
+                    name=f'Condição 1 ({t1:.0f}°C)',
                     marker=dict(size=14, color='red', symbol='circle'),
-                    hovertemplate=f'<b>Condição Inicial (real)</b><br>Temperatura: {t1:.0f}°C<br>Tração: {T01:.0f} kgf<extra></extra>',
+                    hovertemplate=f'<b>Condição 1 (real)</b><br>Temperatura: {t1:.0f}°C<br>Tração: {T01:.0f} kgf<extra></extra>',
                     showlegend=False
                 ),
                 row=1, col=2
@@ -323,9 +323,9 @@ if st.button("🔍 Calcular", type="primary", use_container_width=True):
                     x=[t2],
                     y=[T02],
                     mode='markers',
-                    name=f'Condição Final ({t2:.0f}°C)',
+                    name=f'Condição 2 ({t2:.0f}°C)',
                     marker=dict(size=14, color='green', symbol='circle'),
-                    hovertemplate=f'<b>Condição Final (com correções)</b><br>Temperatura: {t2:.0f}°C<br>Tração: {T02:.0f} kgf<extra></extra>',
+                    hovertemplate=f'<b>Condição 2 (com correções)</b><br>Temperatura: {t2:.0f}°C<br>Tração: {T02:.0f} kgf<extra></extra>',
                     showlegend=False
                 ),
                 row=1, col=2
