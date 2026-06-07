@@ -2,7 +2,6 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 
 # ===================================================
 # CONFIGURAÇÃO DA PÁGINA
@@ -208,7 +207,7 @@ if st.button("🔍 Calcular", type="primary", use_container_width=True):
                     st.metric("Creep aplicado", f"{dt_creep:.1f} °C")
             
             # ===================================================
-            # GRÁFICOS - EVOLUÇÃO COM A TEMPERATURA (0°C a 90°C)
+            # GRÁFICOS - EVOLUÇÃO COM A TEMPERATURA (empilhados)
             # ===================================================
             st.markdown("---")
             st.subheader("📈 EVOLUÇÃO COM A TEMPERATURA")
@@ -243,120 +242,89 @@ if st.button("🔍 Calcular", type="primary", use_container_width=True):
                 flechas_evol.append(flecha_temp)
                 tracoes_evol.append(T_temp_val)
             
-            # Criar subplots com Plotly
-            fig = make_subplots(
-                rows=1, cols=2,
-                subplot_titles=("Flecha", "Tração"),
-                shared_yaxes=False,
-                horizontal_spacing=0.15
-            )
+            # GRÁFICO 1: FLECHA
+            fig_flecha = go.Figure()
             
-            # Gráfico da Flecha
-            fig.add_trace(
-                go.Scatter(
-                    x=temperaturas_orig,
-                    y=flechas_evol,
-                    mode='lines',
-                    name='Evolução (com correções)',
-                    line=dict(color='#1f77b4', width=2),
-                    hovertemplate='<b>Temperatura: %{x:.0f}°C</b><br>Flecha: %{y:.3f} m<extra></extra>'
-                ),
-                row=1, col=1
-            )
+            fig_flecha.add_trace(go.Scatter(
+                x=temperaturas_orig,
+                y=flechas_evol,
+                mode='lines',
+                name='Evolução (com correções)',
+                line=dict(color='#1f77b4', width=2),
+                hovertemplate='<b>Temperatura: %{x:.0f}°C</b><br>Flecha: %{y:.3f} m<extra></extra>'
+            ))
             
-            # Ponto da condição inicial (t1) - valores reais sem correções
-            fig.add_trace(
-                go.Scatter(
-                    x=[t1],
-                    y=[f1],
-                    mode='markers',
-                    name=f'Condição 1 ({t1:.0f}°C)',
-                    marker=dict(size=14, color='red', symbol='circle'),
-                    hovertemplate=f'<b>Condição 1 (real)</b><br>Temperatura: {t1:.0f}°C<br>Flecha: {f1:.3f} m<extra></extra>'
-                ),
-                row=1, col=1
-            )
+            fig_flecha.add_trace(go.Scatter(
+                x=[t1],
+                y=[f1],
+                mode='markers',
+                name=f'Condição Inicial ({t1:.0f}°C)',
+                marker=dict(size=14, color='red', symbol='circle'),
+                hovertemplate=f'<b>Condição Inicial (real)</b><br>Temperatura: {t1:.0f}°C<br>Flecha: {f1:.3f} m<extra></extra>'
+            ))
             
-            # Ponto da condição final (t2)
-            fig.add_trace(
-                go.Scatter(
-                    x=[t2],
-                    y=[f2],
-                    mode='markers',
-                    name=f'Condição 2 ({t2:.0f}°C)',
-                    marker=dict(size=14, color='green', symbol='circle'),
-                    hovertemplate=f'<b>Condição 2 (com correções)</b><br>Temperatura: {t2:.0f}°C<br>Flecha: {f2:.3f} m<extra></extra>'
-                ),
-                row=1, col=1
-            )
+            fig_flecha.add_trace(go.Scatter(
+                x=[t2],
+                y=[f2],
+                mode='markers',
+                name=f'Condição Final ({t2:.0f}°C)',
+                marker=dict(size=14, color='green', symbol='circle'),
+                hovertemplate=f'<b>Condição Final (com correções)</b><br>Temperatura: {t2:.0f}°C<br>Flecha: {f2:.3f} m<extra></extra>'
+            ))
             
-            # Gráfico da Tração
-            fig.add_trace(
-                go.Scatter(
-                    x=temperaturas_orig,
-                    y=tracoes_evol,
-                    mode='lines',
-                    name='Evolução (com correções)',
-                    line=dict(color='#ff7f0e', width=2),
-                    hovertemplate='<b>Temperatura: %{x:.0f}°C</b><br>Tração: %{y:.0f} kgf<extra></extra>'
-                ),
-                row=1, col=2
-            )
-            
-            # Ponto da condição inicial (t1)
-            fig.add_trace(
-                go.Scatter(
-                    x=[t1],
-                    y=[T01],
-                    mode='markers',
-                    name=f'Condição 1 ({t1:.0f}°C)',
-                    marker=dict(size=14, color='red', symbol='circle'),
-                    hovertemplate=f'<b>Condição 1 (real)</b><br>Temperatura: {t1:.0f}°C<br>Tração: {T01:.0f} kgf<extra></extra>',
-                    showlegend=False
-                ),
-                row=1, col=2
-            )
-            
-            # Ponto da condição final (t2)
-            fig.add_trace(
-                go.Scatter(
-                    x=[t2],
-                    y=[T02],
-                    mode='markers',
-                    name=f'Condição 2 ({t2:.0f}°C)',
-                    marker=dict(size=14, color='green', symbol='circle'),
-                    hovertemplate=f'<b>Condição 2 (com correções)</b><br>Temperatura: {t2:.0f}°C<br>Tração: {T02:.0f} kgf<extra></extra>',
-                    showlegend=False
-                ),
-                row=1, col=2
-            )
-            
-            # Layout moderno
-            fig.update_layout(
-                title=dict(
-                    text="<b>Evolução com a Temperatura</b>",
-                    font=dict(size=16, color="#1f1f1f"),
-                    x=0.5
-                ),
+            fig_flecha.update_layout(
+                title=dict(text="<b>Evolução da Flecha com a Temperatura</b>", font=dict(size=14), x=0.5),
+                xaxis_title="Temperatura (°C)",
+                yaxis_title="Flecha (m)",
                 template="plotly_white",
-                height=450,
-                showlegend=True,
-                legend=dict(
-                    orientation="h",
-                    yanchor="bottom",
-                    y=1.02,
-                    xanchor="right",
-                    x=1
-                ),
+                height=400,
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
                 hovermode='closest'
             )
             
-            fig.update_xaxes(title_text="Temperatura (°C)", row=1, col=1)
-            fig.update_yaxes(title_text="Flecha (m)", row=1, col=1)
-            fig.update_xaxes(title_text="Temperatura (°C)", row=1, col=2)
-            fig.update_yaxes(title_text="Tração (kgf)", row=1, col=2)
+            st.plotly_chart(fig_flecha, use_container_width=True)
             
-            st.plotly_chart(fig, use_container_width=True)
+            # GRÁFICO 2: TRAÇÃO
+            fig_tracao = go.Figure()
+            
+            fig_tracao.add_trace(go.Scatter(
+                x=temperaturas_orig,
+                y=tracoes_evol,
+                mode='lines',
+                name='Evolução (com correções)',
+                line=dict(color='#ff7f0e', width=2),
+                hovertemplate='<b>Temperatura: %{x:.0f}°C</b><br>Tração: %{y:.0f} kgf<extra></extra>'
+            ))
+            
+            fig_tracao.add_trace(go.Scatter(
+                x=[t1],
+                y=[T01],
+                mode='markers',
+                name=f'Condição Inicial ({t1:.0f}°C)',
+                marker=dict(size=14, color='red', symbol='circle'),
+                hovertemplate=f'<b>Condição Inicial (real)</b><br>Temperatura: {t1:.0f}°C<br>Tração: {T01:.0f} kgf<extra></extra>'
+            ))
+            
+            fig_tracao.add_trace(go.Scatter(
+                x=[t2],
+                y=[T02],
+                mode='markers',
+                name=f'Condição Final ({t2:.0f}°C)',
+                marker=dict(size=14, color='green', symbol='circle'),
+                hovertemplate=f'<b>Condição Final (com correções)</b><br>Temperatura: {t2:.0f}°C<br>Tração: {T02:.0f} kgf<extra></extra>'
+            ))
+            
+            fig_tracao.update_layout(
+                title=dict(text="<b>Evolução da Tração com a Temperatura</b>", font=dict(size=14), x=0.5),
+                xaxis_title="Temperatura (°C)",
+                yaxis_title="Tração (kgf)",
+                template="plotly_white",
+                height=400,
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                hovermode='closest'
+            )
+            
+            st.plotly_chart(fig_tracao, use_container_width=True)
             
     except Exception as e:
         st.error(f"❌ Erro no cálculo: {e}")
