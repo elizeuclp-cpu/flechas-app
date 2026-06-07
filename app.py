@@ -228,15 +228,21 @@ if st.button("🔍 Calcular", type="primary", use_container_width=True):
                 else:
                     temp_calc = temp_orig
                 
-                # Usar a temperatura corrigida no cálculo
+                # Para o ponto inicial (t1), usar P1 (peso próprio)
+                # Para os demais, usar P2 (peso com vento, se houver)
+                if temp_orig == t1:
+                    peso_curva = P1
+                else:
+                    peso_curva = P2
+                
                 B_temp = (E * area * P1**2 * A**2) / (24 * T01**2) + E * area * alpha * (temp_calc - t1_calc) - T01
-                C_temp = (E * area * P2**2 * A**2) / 24
+                C_temp = (E * area * peso_curva**2 * A**2) / 24
                 
                 roots_temp = np.roots([1, B_temp, 0, -C_temp])
                 T_temp = roots_temp[np.isreal(roots_temp) & (roots_temp > 0)].real
                 T_temp_val = T_temp[0] if len(T_temp) > 0 else T01
                 
-                flecha_temp = (P2 * A**2) / (8 * T_temp_val) if T_temp_val > 0 else 0
+                flecha_temp = (peso_curva * A**2) / (8 * T_temp_val) if T_temp_val > 0 else 0
                 flechas_evol.append(flecha_temp)
                 tracoes_evol.append(T_temp_val)
             
@@ -263,34 +269,30 @@ if st.button("🔍 Calcular", type="primary", use_container_width=True):
             )
             
             # Ponto da condição inicial (t1)
-            idx_t1 = np.where(temperaturas_orig >= t1)[0]
-            if len(idx_t1) > 0:
-                fig.add_trace(
-                    go.Scatter(
-                        x=[t1],
-                        y=[f1],
-                        mode='markers',
-                        name=f'Inicial ({t1:.0f}°C)',
-                        marker=dict(size=12, color='red', symbol='circle'),
-                        hovertemplate=f'<b>Condição Inicial</b><br>Temperatura: {t1:.0f}°C<br>Flecha: {f1:.3f} m<extra></extra>'
-                    ),
-                    row=1, col=1
-                )
+            fig.add_trace(
+                go.Scatter(
+                    x=[t1],
+                    y=[f1],
+                    mode='markers',
+                    name=f'Inicial ({t1:.0f}°C)',
+                    marker=dict(size=12, color='red', symbol='circle'),
+                    hovertemplate=f'<b>Condição Inicial</b><br>Temperatura: {t1:.0f}°C<br>Flecha: {f1:.3f} m<extra></extra>'
+                ),
+                row=1, col=1
+            )
             
             # Ponto da condição final (t2 ORIGINAL)
-            idx_t2 = np.where(temperaturas_orig >= t2)[0]
-            if len(idx_t2) > 0:
-                fig.add_trace(
-                    go.Scatter(
-                        x=[t2],
-                        y=[f2],
-                        mode='markers',
-                        name=f'Final ({t2:.0f}°C)',
-                        marker=dict(size=12, color='green', symbol='circle'),
-                        hovertemplate=f'<b>Condição Final</b><br>Temperatura: {t2:.0f}°C<br>Flecha: {f2:.3f} m<extra></extra>'
-                    ),
-                    row=1, col=1
-                )
+            fig.add_trace(
+                go.Scatter(
+                    x=[t2],
+                    y=[f2],
+                    mode='markers',
+                    name=f'Final ({t2:.0f}°C)',
+                    marker=dict(size=12, color='green', symbol='circle'),
+                    hovertemplate=f'<b>Condição Final</b><br>Temperatura: {t2:.0f}°C<br>Flecha: {f2:.3f} m<extra></extra>'
+                ),
+                row=1, col=1
+            )
             
             # Gráfico da Tração (eixo X = temperatura ORIGINAL)
             fig.add_trace(
@@ -307,34 +309,30 @@ if st.button("🔍 Calcular", type="primary", use_container_width=True):
             )
             
             # Ponto da condição inicial (t1)
-            if len(idx_t1) > 0:
-                fig.add_trace(
-                    go.Scatter(
-                        x=[t1],
-                        y=[T01],
-                        mode='markers',
-                        name=f'Inicial ({t1:.0f}°C)',
-                        marker=dict(size=12, color='red', symbol='circle'),
-                        hovertemplate=f'<b>Condição Inicial</b><br>Temperatura: {t1:.0f}°C<br>Tração: {T01:.0f} kgf<extra></extra>',
-                        showlegend=False
-                    ),
-                    row=1, col=2
-                )
+            fig.add_trace(
+                go.Scatter(
+                    x=[t1],
+                    y=[T01],
+                    mode='markers',
+                    marker=dict(size=12, color='red', symbol='circle'),
+                    hovertemplate=f'<b>Condição Inicial</b><br>Temperatura: {t1:.0f}°C<br>Tração: {T01:.0f} kgf<extra></extra>',
+                    showlegend=False
+                ),
+                row=1, col=2
+            )
             
             # Ponto da condição final (t2 ORIGINAL)
-            if len(idx_t2) > 0:
-                fig.add_trace(
-                    go.Scatter(
-                        x=[t2],
-                        y=[T02],
-                        mode='markers',
-                        name=f'Final ({t2:.0f}°C)',
-                        marker=dict(size=12, color='green', symbol='circle'),
-                        hovertemplate=f'<b>Condição Final</b><br>Temperatura: {t2:.0f}°C<br>Tração: {T02:.0f} kgf<extra></extra>',
-                        showlegend=False
-                    ),
-                    row=1, col=2
-                )
+            fig.add_trace(
+                go.Scatter(
+                    x=[t2],
+                    y=[T02],
+                    mode='markers',
+                    marker=dict(size=12, color='green', symbol='circle'),
+                    hovertemplate=f'<b>Condição Final</b><br>Temperatura: {t2:.0f}°C<br>Tração: {T02:.0f} kgf<extra></extra>',
+                    showlegend=False
+                ),
+                row=1, col=2
+            )
             
             # Layout moderno
             fig.update_layout(
