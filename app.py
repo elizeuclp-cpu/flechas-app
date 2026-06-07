@@ -1,6 +1,10 @@
 import streamlit as st
 import numpy as np
 import pandas as pd
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+from io import BytesIO
+import base64
 
 # ===================================================
 # CONFIGURAÇÃO DA PÁGINA
@@ -40,6 +44,22 @@ def mudanca_estado(T_initial, temp_initial, temp_final, peso_initial, peso_final
     if len(T_final) == 0:
         return T_initial
     return T_final[0]
+
+def format_variacao(valor_inicial, valor_final):
+    variacao = valor_final - valor_inicial
+    percentual = (variacao / valor_inicial) * 100 if valor_inicial != 0 else 0
+    
+    if variacao > 0:
+        seta = "▲"
+        cor = "green"
+    elif variacao < 0:
+        seta = "▼"
+        cor = "red"
+    else:
+        seta = "●"
+        cor = "gray"
+    
+    return f'{seta} {variacao:+.3f} ({percentual:+.1f}%)', cor
 
 # ===================================================
 # INTERFACE - 2 COLUNAS
@@ -114,7 +134,9 @@ with col2:
 # BOTÃO DE CÁLCULO
 # ===================================================
 
-if st.button("🔍 Calcular", type="primary", use_container_width=True):
+calcular = st.button("🔍 Calcular", type="primary", use_container_width=True)
+
+if calcular:
     try:
         # Peso próprio
         P1 = peso
@@ -151,67 +173,276 @@ if st.button("🔍 Calcular", type="primary", use_container_width=True):
         else:
             T02 = T02[0]
             
+            # Flechas
+            f1 = (P1 * A**2) / (8 * T01)
+            f2 = (P2 * A**2) / (8 * T02)
+            
+            # Salvar resultados no session_state
+            st.session_state['P1'] = P1
+            st.session_state['P2'] = P2
+            st.session_state['T01'] = T01
+            st.session_state['T02'] = T02
+            st.session_state['f1'] = f1
+            st.session_state['f2'] = f2
+            st.session_state['cr'] = cr
+            st.session_state['E'] = E
+            st.session_state['area'] = area
+            st.session_state['alpha'] = alpha
+            st.session_state['A'] = A
+            st.session_state['dt_creep'] = dt_creep
+            st.session_state['cabo_selecionado'] = cabo_selecionado
+            st.session_state['t1_eq'] = t1_eq
+            st.session_state['t2_eq'] = t2_eq
+            st.session_state['mensagem_creep'] = mensagem_creep
+            st.session_state['analise_flechas'] = analise_flechas
+            st.session_state['resultado_pronto'] = True
+            
             # ===================================================
             # EXIBIR RESULTADOS
             # ===================================================
             st.markdown("---")
             st.subheader("📊 RESULTADOS")
             
-            # Métricas
-            col_met1, col_met2 = st.columns(2)
-            with col_met1:
-                st.metric("Tração Inicial (T01)", f"{T01:.2f} kgf", f"{100*T01/cr:.2f} %CR")
-            with col_met2:
-                st.metric("Tração Final (T02)", f"{T02:.2f} kgf", f"{100*T02/cr:.2f} %CR")
+            # TABELA COMPARATIVA (Opção 4 com cores)
+            variacao_tracao, cor_tracao = format_variacao(T01, T02)
+            variacao_flecha, cor_flecha = format_variacao(f1, f2)
             
-            # Detalhes
+            # Criar HTML para tabela com cores
+            tabela_html = f"""
+            <style>
+                .tabela-resultado {{
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin: 20px 0;
+                    font-size: 16px;
+                    text-align: center;
+                }}
+                .tabela-resultado th {{
+                    background-color: #1f1f1f;
+                    color: white;
+                    padding: 12px;
+                    border: 1px solid #ddd;
+                }}
+                .tabela-resultado td {{
+                    padding: 10px;
+                    border: 1px solid #ddd;
+                }}
+                .verde {{ color: #2ca02c; font-weight: bold; }}
+                .vermelho {{ color: #d62728; font-weight: bold; }}
+                .cinza {{ color: #7f7f7f; font-weight: bold; }}
+            </style>
+            <table class="tabela-resultado">
+                <tr>
+                    <th>Parâmetro</th>
+                    <th>Inicial</th>
+                    <th>Final</th>
+                    <th>Variação</th>
+                </tr>
+                <tr>
+                    <td><b>Tração (kgf)</b></td>
+                    <td>{T01:.1f} ({100*T01/cr:.1f}% CR)</td>
+                    <td>{T02:.1f} ({100*T02/cr:.1f}% CR)</td>
+                    <td class="{cor_tracao}">{variacao_tracao}</td>
+                </tr>
+            """
+            
+            if analise_flechas:
+                tabela_html += f"""
+                <tr>
+                    <td><b>Flecha (m)</b></td>
+                    <td>{f1:.3f}</td>
+                    <td>{f2:.3f}</td>
+                    <td class="{cor_flecha}">{variacao_flecha}</td>
+                </tr>
+                """
+            
+            tabela_html += "</table>"
+            st.markdown(tabela_html, unsafe_allow_html=True)
+            
+            # Detalhes adicionais
             st.markdown("---")
             st.subheader("📋 DETALHES")
             
-            detalhes = {
-                "Cabo": cabo_selecionado,
-                "CR": f"{cr:.1f} kgf",
-                "Temperatura 1": f"{t1_eq:.1f} °C",
-                "Temperatura 2": f"{t2_eq:.1f} °C",
-                "Peso próprio (P1)": f"{P1:.4f} kgf/m",
-                "Peso com vento (P2)": f"{P2:.4f} kgf/m",
-            }
+            col_det1, col_det2 = st.columns(2)
+            with col_det1:
+                st.metric("Cabo", cabo_selecionado)
+                st.metric("CR", f"{cr:.1f} kgf")
+                st.metric("Vão", f"{A} m")
+            with col_det2:
+                st.metric("Temperatura 1", f"{t1_eq:.1f} °C")
+                st.metric("Temperatura 2", f"{t2_eq:.1f} °C")
+                if mensagem_creep:
+                    st.metric("Creep", f"{dt_creep:.1f} °C")
             
-            if mensagem_creep:
-                detalhes["Creep"] = f"{dt_creep:.1f} °C"
-                detalhes["Temperatura 2 corrigida"] = f"{t2_eq:.1f} °C"
-            
-            for key, value in detalhes.items():
-                st.text(f"   {key}: {value}")
-            
-            # Flechas
+            # ===================================================
+            # GRÁFICOS MODERNOS COM PLOTLY (Opção 3)
+            # ===================================================
             if analise_flechas:
-                f1 = (P1 * A**2) / (8 * T01)
-                f2 = (P2 * A**2) / (8 * T02)
-                
                 st.markdown("---")
-                st.subheader("📈 FLECHAS")
+                st.subheader("📈 EVOLUÇÃO COM A TEMPERATURA")
                 
-                col_f1, col_f2, col_f3 = st.columns(3)
-                with col_f1:
-                    st.metric("Flecha inicial (f1)", f"{f1:.3f} m")
-                with col_f2:
-                    st.metric("Flecha final (f2)", f"{f2:.3f} m")
-                with col_f3:
-                    st.metric("Δf", f"{f2 - f1:.3f} m")
+                # Gerar pontos de t1 até 90°C (passo 1°C)
+                temp_max = max(90, t2_eq)
+                temperaturas = np.arange(t1_eq, temp_max + 1, 1)
+                
+                flechas_evol = []
+                tracoes_evol = []
+                
+                for temp in temperaturas:
+                    # Ajustar temperatura com creep se aplicável
+                    if "creep" in cond.lower():
+                        temp_eq = temp - dt_creep
+                    else:
+                        temp_eq = temp
+                    
+                    B_temp = (E * area * P1**2 * A**2) / (24 * T01**2) + E * area * alpha * (temp_eq - t1_eq) - T01
+                    C_temp = (E * area * P2**2 * A**2) / 24
+                    
+                    roots_temp = np.roots([1, B_temp, 0, -C_temp])
+                    T_temp = roots_temp[np.isreal(roots_temp) & (roots_temp > 0)].real
+                    T_temp_val = T_temp[0] if len(T_temp) > 0 else T01
+                    
+                    flecha_temp = (P2 * A**2) / (8 * T_temp_val) if T_temp_val > 0 else 0
+                    flechas_evol.append(flecha_temp)
+                    tracoes_evol.append(T_temp_val)
+                
+                # Criar subplots com Plotly
+                fig = make_subplots(
+                    rows=1, cols=2,
+                    subplot_titles=("Flecha", "Tração"),
+                    shared_yaxes=False,
+                    horizontal_spacing=0.15
+                )
+                
+                # Gráfico da Flecha
+                fig.add_trace(
+                    go.Scatter(
+                        x=temperaturas,
+                        y=flechas_evol,
+                        mode='lines+markers',
+                        name='Flecha',
+                        line=dict(color='#1f77b4', width=2),
+                        marker=dict(size=4, color='#1f77b4'),
+                        hovertemplate='<b>Temperatura: %{x:.0f}°C</b><br>Flecha: %{y:.3f} m<extra></extra>'
+                    ),
+                    row=1, col=1
+                )
+                
+                # Ponto da condição inicial (t1)
+                idx_t1 = np.where(temperaturas >= t1_eq)[0]
+                if len(idx_t1) > 0:
+                    fig.add_trace(
+                        go.Scatter(
+                            x=[t1_eq],
+                            y=[f1],
+                            mode='markers',
+                            name=f'Inicial ({t1_eq:.0f}°C)',
+                            marker=dict(size=12, color='red', symbol='circle'),
+                            hovertemplate=f'<b>Condição Inicial</b><br>Temperatura: {t1_eq:.0f}°C<br>Flecha: {f1:.3f} m<extra></extra>'
+                        ),
+                        row=1, col=1
+                    )
+                
+                # Ponto da condição final (t2_eq)
+                idx_t2 = np.where(temperaturas >= t2_eq)[0]
+                if len(idx_t2) > 0:
+                    fig.add_trace(
+                        go.Scatter(
+                            x=[t2_eq],
+                            y=[f2],
+                            mode='markers',
+                            name=f'Final ({t2_eq:.0f}°C)',
+                            marker=dict(size=12, color='green', symbol='circle'),
+                            hovertemplate=f'<b>Condição Final</b><br>Temperatura: {t2_eq:.0f}°C<br>Flecha: {f2:.3f} m<extra></extra>'
+                        ),
+                        row=1, col=1
+                    )
+                
+                # Gráfico da Tração
+                fig.add_trace(
+                    go.Scatter(
+                        x=temperaturas,
+                        y=tracoes_evol,
+                        mode='lines+markers',
+                        name='Tração',
+                        line=dict(color='#ff7f0e', width=2),
+                        marker=dict(size=4, color='#ff7f0e'),
+                        hovertemplate='<b>Temperatura: %{x:.0f}°C</b><br>Tração: %{y:.0f} kgf<extra></extra>'
+                    ),
+                    row=1, col=2
+                )
+                
+                # Ponto da condição inicial (t1)
+                if len(idx_t1) > 0:
+                    fig.add_trace(
+                        go.Scatter(
+                            x=[t1_eq],
+                            y=[T01],
+                            mode='markers',
+                            name=f'Inicial ({t1_eq:.0f}°C)',
+                            marker=dict(size=12, color='red', symbol='circle'),
+                            hovertemplate=f'<b>Condição Inicial</b><br>Temperatura: {t1_eq:.0f}°C<br>Tração: {T01:.0f} kgf<extra></extra>',
+                            showlegend=False
+                        ),
+                        row=1, col=2
+                    )
+                
+                # Ponto da condição final (t2_eq)
+                if len(idx_t2) > 0:
+                    fig.add_trace(
+                        go.Scatter(
+                            x=[t2_eq],
+                            y=[T02],
+                            mode='markers',
+                            name=f'Final ({t2_eq:.0f}°C)',
+                            marker=dict(size=12, color='green', symbol='circle'),
+                            hovertemplate=f'<b>Condição Final</b><br>Temperatura: {t2_eq:.0f}°C<br>Tração: {T02:.0f} kgf<extra></extra>',
+                            showlegend=False
+                        ),
+                        row=1, col=2
+                    )
+                
+                # Layout moderno
+                fig.update_layout(
+                    title=dict(
+                        text="<b>Evolução com a Temperatura</b>",
+                        font=dict(size=16, color="#1f1f1f"),
+                        x=0.5
+                    ),
+                    template="plotly_white",
+                    height=450,
+                    showlegend=True,
+                    legend=dict(
+                        orientation="h",
+                        yanchor="bottom",
+                        y=1.02,
+                        xanchor="right",
+                        x=1
+                    ),
+                    hovermode='closest'
+                )
+                
+                # Configurar eixos
+                fig.update_xaxes(title_text="Temperatura (°C)", row=1, col=1)
+                fig.update_yaxes(title_text="Flecha (m)", row=1, col=1)
+                fig.update_xaxes(title_text="Temperatura (°C)", row=1, col=2)
+                fig.update_yaxes(title_text="Tração (kgf)", row=1, col=2)
+                
+                st.plotly_chart(fig, use_container_width=True)
             
-            # Tabela de esticamento
+            # ===================================================
+            # TABELA DE ESTICAMENTO
+            # ===================================================
             st.markdown("---")
             st.subheader("📊 TABELA DE ESTICAMENTO")
             
-            # Inputs para tabela
             col_tab1, col_tab2 = st.columns(2)
             with col_tab1:
-                temp_eds = st.number_input("Temp EDS (°C)", value=20.0, step=0.5)
+                temp_eds = st.number_input("Temp EDS (°C)", value=20.0, step=0.5, key="temp_eds_tab")
             with col_tab2:
-                eds_percent = st.number_input("EDS (%CR)", value=20.0, step=0.5, min_value=1.0, max_value=100.0)
+                eds_percent = st.number_input("EDS (%CR)", value=20.0, step=0.5, min_value=1.0, max_value=100.0, key="eds_percent_tab")
             
-            if st.button("📊 Gerar tabela de esticamento", use_container_width=True):
+            if st.button("📊 Gerar tabela de esticamento", key="btn_gerar_tabela"):
                 # Tração EDS em kgf
                 t_eds_kgf = cr * (eds_percent / 100.0)
                 
@@ -241,9 +472,6 @@ if st.button("🔍 Calcular", type="primary", use_container_width=True):
                 st.dataframe(df, use_container_width=True, hide_index=True)
                 
                 # Download Excel
-                from io import BytesIO
-                import base64
-                
                 output_excel = BytesIO()
                 with pd.ExcelWriter(output_excel, engine='openpyxl') as writer:
                     df.to_excel(writer, sheet_name='Tabela Esticamento', index=False)
@@ -252,6 +480,6 @@ if st.button("🔍 Calcular", type="primary", use_container_width=True):
                 b64 = base64.b64encode(output_excel.read()).decode()
                 href = f'<a href="data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64}" download="tabela_esticamento.xlsx">📎 Download Excel</a>'
                 st.markdown(href, unsafe_allow_html=True)
-        
+            
     except Exception as e:
         st.error(f"❌ Erro no cálculo: {e}")
