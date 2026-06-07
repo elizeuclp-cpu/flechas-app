@@ -113,6 +113,18 @@ with col2:
     A = st.number_input("Vão A (m)", value=100.0, step=1.0, min_value=1.0, max_value=600.0)
 
 # ===================================================
+# TABELA DE ESTICAMENTO (inputs fora do botão)
+# ===================================================
+st.markdown("---")
+st.subheader("📊 TABELA DE ESTICAMENTO")
+
+col_tab1, col_tab2 = st.columns(2)
+with col_tab1:
+    temp_eds = st.number_input("Temp EDS (°C)", value=20.0, step=0.5, key="temp_eds_tab")
+with col_tab2:
+    eds_percent = st.number_input("EDS (%CR)", value=20.0, step=0.5, min_value=1.0, max_value=100.0, key="eds_percent_tab")
+
+# ===================================================
 # BOTÃO DE CÁLCULO
 # ===================================================
 
@@ -160,7 +172,7 @@ if st.button("🔍 Calcular", type="primary", use_container_width=True):
             st.markdown("---")
             st.subheader("📊 RESULTADOS")
             
-            # Tabela usando DataFrame (sem HTML manual)
+            # Tabela usando DataFrame
             dados_tabela = []
             
             # Tração
@@ -357,14 +369,8 @@ if st.button("🔍 Calcular", type="primary", use_container_width=True):
             st.plotly_chart(fig, use_container_width=True)
             
             # ===================================================
-            # TABELA DE ESTICAMENTO (fora do botão)
+            # GERAR TABELA DE ESTICAMENTO (botão separado)
             # ===================================================
-            st.markdown("---")
-            st.subheader("📊 TABELA DE ESTICAMENTO")
-            
-            temp_eds = st.number_input("Temp EDS (°C)", value=20.0, step=0.5, key="temp_eds_tab")
-            eds_percent = st.number_input("EDS (%CR)", value=20.0, step=0.5, min_value=1.0, max_value=100.0, key="eds_percent_tab")
-            
             if st.button("📊 Gerar tabela de esticamento", key="btn_gerar_tabela"):
                 t_eds_kgf = cr * (eds_percent / 100.0)
                 
