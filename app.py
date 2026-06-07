@@ -1,10 +1,8 @@
-import streamlit as st
+    import streamlit as st
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from io import BytesIO
-import base64
 
 # ===================================================
 # CONFIGURAÇÃO DA PÁGINA
@@ -113,18 +111,6 @@ with col2:
     A = st.number_input("Vão A (m)", value=100.0, step=1.0, min_value=1.0, max_value=600.0)
 
 # ===================================================
-# TABELA DE ESTICAMENTO (inputs fora do botão)
-# ===================================================
-st.markdown("---")
-st.subheader("📊 TABELA DE ESTICAMENTO")
-
-col_tab1, col_tab2 = st.columns(2)
-with col_tab1:
-    temp_eds = st.number_input("Temp EDS (°C)", value=20.0, step=0.5, key="temp_eds_tab")
-with col_tab2:
-    eds_percent = st.number_input("EDS (%CR)", value=20.0, step=0.5, min_value=1.0, max_value=100.0, key="eds_percent_tab")
-
-# ===================================================
 # BOTÃO DE CÁLCULO
 # ===================================================
 
@@ -139,19 +125,19 @@ if st.button("🔍 Calcular", type="primary", use_container_width=True):
         else:
             P2 = P1
         
-        # Temperaturas equivalentes (com creep)
+        # Temperatura corrigida para cálculo (invisível para o usuário)
         if cond == "Inicial → Final (com creep)":
-            t2_eq = t2 + dt_creep
-            t1_eq = t1
+            t2_calc = t2 + dt_creep
+            t1_calc = t1
         elif cond == "Final → Inicial (com creep)":
-            t2_eq = t2 - dt_creep
-            t1_eq = t1
+            t2_calc = t2 - dt_creep
+            t1_calc = t1
         else:
-            t1_eq = t1
-            t2_eq = t2
+            t1_calc = t1
+            t2_calc = t2
         
-        # Cálculo da mudança de estado
-        B = (E * area * P1**2 * A**2) / (24 * T01**2) + E * area * alpha * (t2_eq - t1_eq) - T01
+        # Cálculo da mudança de estado (usa temperatura corrigida)
+        B = (E * area * P1**2 * A**2) / (24 * T01**2) + E * area * alpha * (t2_calc - t1_calc) - T01
         C = (E * area * P2**2 * A**2) / 24
         
         roots = np.roots([1, B, 0, -C])
@@ -162,7 +148,7 @@ if st.button("🔍 Calcular", type="primary", use_container_width=True):
         else:
             T02 = T02[0]
             
-            # Flechas (sempre calculadas)
+            # Flechas
             f1 = (P1 * A**2) / (8 * T01)
             f2 = (P2 * A**2) / (8 * T02)
             
@@ -204,7 +190,7 @@ if st.button("🔍 Calcular", type="primary", use_container_width=True):
             df = pd.DataFrame(dados_tabela)
             st.dataframe(df, use_container_width=True, hide_index=True)
             
-            # Detalhes adicionais
+            # Detalhes adicionais (mostra temperatura ORIGINAL)
             st.markdown("---")
             st.subheader("📋 DETALHES")
             
@@ -216,31 +202,34 @@ if st.button("🔍 Calcular", type="primary", use_container_width=True):
                 st.metric("Vão", f"{A} m")
                 st.metric("Peso próprio", f"{P1:.4f} kgf/m")
             with col_det3:
-                st.metric("Temperatura 1", f"{t1_eq:.1f} °C")
-                st.metric("Temperatura 2", f"{t2_eq:.1f} °C")
+                st.metric("Temperatura 1", f"{t1:.1f} °C")
+                st.metric("Temperatura 2", f"{t2:.1f} °C")  # ORIGINAL!
                 if dt_creep != 0:
-                    st.metric("Creep", f"{dt_creep:.1f} °C")
+                    st.metric("Creep aplicado", f"{dt_creep:.1f} °C")
             
             # ===================================================
-            # GRÁFICOS MODERNOS (Plotly)
+            # GRÁFICOS MODERNOS (com temperatura ORIGINAL no eixo X)
             # ===================================================
             st.markdown("---")
             st.subheader("📈 EVOLUÇÃO COM A TEMPERATURA")
             
-            # Gerar pontos de t1 até 90°C (passo 1°C)
-            temp_max = max(90, t2_eq)
-            temperaturas = np.arange(t1_eq, temp_max + 1, 1)
+            # Gerar pontos de t1 até t2 (temperatura ORIGINAL, passo 1°C)
+            temperaturas_orig = np.arange(t1, t2 + 1, 1)
             
             flechas_evol = []
             tracoes_evol = []
             
-            for temp in temperaturas:
-                if "creep" in cond.lower():
-                    temp_eq = temp - dt_creep
+            for temp_orig in temperaturas_orig:
+                # Para cada temperatura original, calcular a temperatura corrigida (se houver creep)
+                if cond == "Inicial → Final (com creep)":
+                    temp_calc = temp_orig + dt_creep
+                elif cond == "Final → Inicial (com creep)":
+                    temp_calc = temp_orig - dt_creep
                 else:
-                    temp_eq = temp
+                    temp_calc = temp_orig
                 
-                B_temp = (E * area * P1**2 * A**2) / (24 * T01**2) + E * area * alpha * (temp_eq - t1_eq) - T01
+                # Usar a temperatura corrigida no cálculo
+                B_temp = (E * area * P1**2 * A**2) / (24 * T01**2) + E * area * alpha * (temp_calc - t1_calc) - T01
                 C_temp = (E * area * P2**2 * A**2) / 24
                 
                 roots_temp = np.roots([1, B_temp, 0, -C_temp])
@@ -259,10 +248,10 @@ if st.button("🔍 Calcular", type="primary", use_container_width=True):
                 horizontal_spacing=0.15
             )
             
-            # Gráfico da Flecha
+            # Gráfico da Flecha (eixo X = temperatura ORIGINAL)
             fig.add_trace(
                 go.Scatter(
-                    x=temperaturas,
+                    x=temperaturas_orig,
                     y=flechas_evol,
                     mode='lines+markers',
                     name='Flecha',
@@ -274,35 +263,39 @@ if st.button("🔍 Calcular", type="primary", use_container_width=True):
             )
             
             # Ponto da condição inicial (t1)
-            fig.add_trace(
-                go.Scatter(
-                    x=[t1_eq],
-                    y=[f1],
-                    mode='markers',
-                    name=f'Inicial ({t1_eq:.0f}°C)',
-                    marker=dict(size=12, color='red', symbol='circle'),
-                    hovertemplate=f'<b>Condição Inicial</b><br>Temperatura: {t1_eq:.0f}°C<br>Flecha: {f1:.3f} m<extra></extra>'
-                ),
-                row=1, col=1
-            )
+            idx_t1 = np.where(temperaturas_orig >= t1)[0]
+            if len(idx_t1) > 0:
+                fig.add_trace(
+                    go.Scatter(
+                        x=[t1],
+                        y=[f1],
+                        mode='markers',
+                        name=f'Inicial ({t1:.0f}°C)',
+                        marker=dict(size=12, color='red', symbol='circle'),
+                        hovertemplate=f'<b>Condição Inicial</b><br>Temperatura: {t1:.0f}°C<br>Flecha: {f1:.3f} m<extra></extra>'
+                    ),
+                    row=1, col=1
+                )
             
-            # Ponto da condição final (t2_eq)
-            fig.add_trace(
-                go.Scatter(
-                    x=[t2_eq],
-                    y=[f2],
-                    mode='markers',
-                    name=f'Final ({t2_eq:.0f}°C)',
-                    marker=dict(size=12, color='green', symbol='circle'),
-                    hovertemplate=f'<b>Condição Final</b><br>Temperatura: {t2_eq:.0f}°C<br>Flecha: {f2:.3f} m<extra></extra>'
-                ),
-                row=1, col=1
-            )
+            # Ponto da condição final (t2 ORIGINAL)
+            idx_t2 = np.where(temperaturas_orig >= t2)[0]
+            if len(idx_t2) > 0:
+                fig.add_trace(
+                    go.Scatter(
+                        x=[t2],
+                        y=[f2],
+                        mode='markers',
+                        name=f'Final ({t2:.0f}°C)',
+                        marker=dict(size=12, color='green', symbol='circle'),
+                        hovertemplate=f'<b>Condição Final</b><br>Temperatura: {t2:.0f}°C<br>Flecha: {f2:.3f} m<extra></extra>'
+                    ),
+                    row=1, col=1
+                )
             
-            # Gráfico da Tração
+            # Gráfico da Tração (eixo X = temperatura ORIGINAL)
             fig.add_trace(
                 go.Scatter(
-                    x=temperaturas,
+                    x=temperaturas_orig,
                     y=tracoes_evol,
                     mode='lines+markers',
                     name='Tração',
@@ -314,32 +307,34 @@ if st.button("🔍 Calcular", type="primary", use_container_width=True):
             )
             
             # Ponto da condição inicial (t1)
-            fig.add_trace(
-                go.Scatter(
-                    x=[t1_eq],
-                    y=[T01],
-                    mode='markers',
-                    name=f'Inicial ({t1_eq:.0f}°C)',
-                    marker=dict(size=12, color='red', symbol='circle'),
-                    hovertemplate=f'<b>Condição Inicial</b><br>Temperatura: {t1_eq:.0f}°C<br>Tração: {T01:.0f} kgf<extra></extra>',
-                    showlegend=False
-                ),
-                row=1, col=2
-            )
+            if len(idx_t1) > 0:
+                fig.add_trace(
+                    go.Scatter(
+                        x=[t1],
+                        y=[T01],
+                        mode='markers',
+                        name=f'Inicial ({t1:.0f}°C)',
+                        marker=dict(size=12, color='red', symbol='circle'),
+                        hovertemplate=f'<b>Condição Inicial</b><br>Temperatura: {t1:.0f}°C<br>Tração: {T01:.0f} kgf<extra></extra>',
+                        showlegend=False
+                    ),
+                    row=1, col=2
+                )
             
-            # Ponto da condição final (t2_eq)
-            fig.add_trace(
-                go.Scatter(
-                    x=[t2_eq],
-                    y=[T02],
-                    mode='markers',
-                    name=f'Final ({t2_eq:.0f}°C)',
-                    marker=dict(size=12, color='green', symbol='circle'),
-                    hovertemplate=f'<b>Condição Final</b><br>Temperatura: {t2_eq:.0f}°C<br>Tração: {T02:.0f} kgf<extra></extra>',
-                    showlegend=False
-                ),
-                row=1, col=2
-            )
+            # Ponto da condição final (t2 ORIGINAL)
+            if len(idx_t2) > 0:
+                fig.add_trace(
+                    go.Scatter(
+                        x=[t2],
+                        y=[T02],
+                        mode='markers',
+                        name=f'Final ({t2:.0f}°C)',
+                        marker=dict(size=12, color='green', symbol='circle'),
+                        hovertemplate=f'<b>Condição Final</b><br>Temperatura: {t2:.0f}°C<br>Tração: {T02:.0f} kgf<extra></extra>',
+                        showlegend=False
+                    ),
+                    row=1, col=2
+                )
             
             # Layout moderno
             fig.update_layout(
@@ -361,51 +356,12 @@ if st.button("🔍 Calcular", type="primary", use_container_width=True):
                 hovermode='closest'
             )
             
-            fig.update_xaxes(title_text="Temperatura (°C)", row=1, col=1)
+            fig.update_xaxes(title_text="Temperatura Original (°C)", row=1, col=1)
             fig.update_yaxes(title_text="Flecha (m)", row=1, col=1)
-            fig.update_xaxes(title_text="Temperatura (°C)", row=1, col=2)
+            fig.update_xaxes(title_text="Temperatura Original (°C)", row=1, col=2)
             fig.update_yaxes(title_text="Tração (kgf)", row=1, col=2)
             
             st.plotly_chart(fig, use_container_width=True)
-            
-            # ===================================================
-            # GERAR TABELA DE ESTICAMENTO (botão separado)
-            # ===================================================
-            if st.button("📊 Gerar tabela de esticamento", key="btn_gerar_tabela"):
-                t_eds_kgf = cr * (eds_percent / 100.0)
-                
-                dados = []
-                for temp in range(15, 36):
-                    temp_equivalente = temp - dt_creep
-                    
-                    B_tab = (E * area * P1**2 * A**2) / (24 * t_eds_kgf**2) + E * area * alpha * (temp_equivalente - temp_eds) - t_eds_kgf
-                    C_tab = (E * area * P1**2 * A**2) / 24
-                    
-                    roots_tab = np.roots([1, B_tab, 0, -C_tab])
-                    tracao = roots_tab[np.isreal(roots_tab) & (roots_tab > 0)].real
-                    tracao_val = tracao[0] if len(tracao) > 0 else 0
-                    
-                    percent_cr = (tracao_val / cr) * 100.0 if cr > 0 else 0
-                    flecha = (P1 * A**2) / (8 * tracao_val) if tracao_val > 0 else 0
-                    
-                    dados.append({
-                        'Temp (°C)': temp,
-                        'Tração (%CR)': f"{percent_cr:.2f}",
-                        'Tração (kgf)': f"{tracao_val:.1f}",
-                        'Flecha (m)': f"{flecha:.3f}"
-                    })
-                
-                df_tab = pd.DataFrame(dados)
-                st.dataframe(df_tab, use_container_width=True, hide_index=True)
-                
-                output_excel = BytesIO()
-                with pd.ExcelWriter(output_excel, engine='openpyxl') as writer:
-                    df_tab.to_excel(writer, sheet_name='Tabela Esticamento', index=False)
-                
-                output_excel.seek(0)
-                b64 = base64.b64encode(output_excel.read()).decode()
-                href = f'<a href="data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64}" download="tabela_esticamento.xlsx">📎 Download Excel</a>'
-                st.markdown(href, unsafe_allow_html=True)
             
     except Exception as e:
         st.error(f"❌ Erro no cálculo: {e}")
